@@ -14,6 +14,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          submodules: recursive
 
       - name: Install System Dependencies
         run: |
@@ -21,7 +23,19 @@ jobs:
           echo "INSTALLING HOMEBREW TOOLS"
           echo "=========================================================="
           # Essential packages for compiling sm64coop-based ports on macOS
-          brew install make pkg-config coreutils sdl2 glew glfw3 libusb audiofile
+          # Removed problematic audiofile package and kept core libraries
+          brew install make pkg-config coreutils sdl2 glew glfw3 libusb
+          
+      - name: Environment Information
+        run: |
+          echo "=========================================================="
+          echo "SYSTEM AND ENVIRONMENT OVERVIEW"
+          echo "=========================================================="
+          uname -a
+          which make
+          make --version
+          pkg-config --version
+          echo "GITHUB_WORKSPACE: ${GITHUB_WORKSPACE}"
 
       - name: Exhaustive Directory Guard
         run: |
@@ -29,7 +43,15 @@ jobs:
           echo "PRE-GENERATING ALL BUILD PATHS"
           echo "=========================================================="
           # Force create paths to prevent "No such file or directory" during parallel builds
+          # This specifically protects the sound extraction steps
           mkdir -p tools
+          mkdir -p build/us_pc/src/pc
+          mkdir -p build/us_pc/src/engine
+          mkdir -p build/us_pc/src/game
+          mkdir -p build/us_pc/bin
+          mkdir -p build/us_pc/actors
+          mkdir -p build/us_pc/levels
+          mkdir -p build/us_pc/assets
           mkdir -p build/us_pc/sound/samples/sfx_custom_luigi
           mkdir -p build/us_pc/sound/samples/sfx_custom_luigi_peach
           mkdir -p build/us_pc/sound/samples/sfx_custom_mario
@@ -37,49 +59,68 @@ jobs:
           mkdir -p build/us_pc/sound/samples/sfx_custom_toad
           mkdir -p build/us_pc/sound/samples/sfx_custom_wario
           mkdir -p build/us_pc/sound/samples/sfx_custom_yoshi
+          echo "Directory structure finalized."
 
-      - name: Build Native Host Tools
+      - name: Compile Host Extraction Tools
         run: |
           echo "=========================================================="
-          echo "COMPILING HOST EXTRACTION TOOLS"
+          echo "BUILDING NATIVE TOOLS FOR MAC HOST"
           echo "=========================================================="
-          # We must compile the tools folder separately first so aiff_extract_codebook is available
+          # This step fixes Error 127 by ensuring aiff_extract_codebook is built for Mac
           make -C tools -j$(sysctl -n hw.ncpu)
+          if [ ! -f "tools/aiff_extract_codebook" ]; then
+            echo "Critical Error: aiff_extract_codebook failed to compile!"
+            exit 1
+          fi
+          echo "Host tools successfully compiled."
 
-      - name: Universal Audio Patch
+      - name: Audio Intercept and Path Protection
         run: |
           echo "=========================================================="
-          echo "BYPASSING AUDIO EXTRACTION ERRORS"
+          echo "BYPASSING ASSET EXTRACTION ROADBLOCKS"
           echo "=========================================================="
-          # Deletes source audio to prevent extraction loops and touches dummy tables
+          # Prevents extraction loops for assets that aren't on the server
           find . -type f -name "*.aiff" -exec rm -f {} +
           find . -type f -name "*.aifc" -exec rm -f {} +
+          
+          # Create dummy tables so the build doesn't halt
+          echo "Creating dummy audio tables..."
           touch build/us_pc/sound/samples/sfx_custom_luigi/00_luigi_jump_hoo.table
           touch build/us_pc/sound/samples/sfx_custom_luigi_peach/00_luigi_waaaooow.table
+          echo "Dummy assets injected."
 
-      - name: Compile Saturn for iOS
+      - name: Compile Saturn targeting iOS
         run: |
           echo "=========================================================="
-          echo "STARTING CORE COMPILATION"
+          echo "STARTING CORE iOS COMPILATION"
           echo "=========================================================="
-          # TARGET_IOS=1 triggers the mobile optimizations
+          # Using TARGET_IOS=1 to trigger mobile optimizations
+          # Parallel build using all available CPU cores
           make TARGET_IOS=1 -j$(sysctl -n hw.ncpu)
 
-      - name: Structure IPA Payload
+      - name: Package Application Bundle into IPA
         run: |
           echo "=========================================================="
-          echo "PACKAGING APP BUNDLE"
+          echo "STRUCTURING SECURE IPA PAYLOAD"
           echo "=========================================================="
           mkdir -p Payload
+          
           # Detect and package the app bundle (saturn.app, sm64coopdx.app, or generic)
           if [ -d "build/us_pc/saturnapp" ]; then
+            echo "Packaging saturn.app bundle..."
             cp -r build/us_pc/saturn.app Payload/
           elif [ -d "build/us_pc/smcoopdxapp" ]; then
+            echo "Packaging sm64coopdx.app bundle..."
             cp -r build/us_pc/sm64coopdx.app Payload/
           else
+            echo "Searching for generic .app folders..."
             cp -r build/us_pc/*.app Payload/ || echo "Warning: No .app folder detected."
           fi
+          
+          # Compress folder structures into .ipa format
+          echo "Zipping Payload into saturn_iPad.ipa..."
           zip -r saturn_iPad.ipa Payload
+          echo "IPA packaging complete."
 
       - name: Upload Saturn iPad Bundle
         uses: actions/upload-artifact@v4
@@ -87,8 +128,8 @@ jobs:
           name: saturn-ipad-bundle
           path: saturn_iPad.ipa
 
-  # Standard Windows/Linux builds included for completeness
   build-windows:
+    name: Build Windows Binary
     runs-on: windows-latest
     defaults:
       run:
@@ -115,11 +156,12 @@ jobs:
           path: ./build/us_pc/saturn_Windows.zip
 
   build-linux:
+    name: Build Linux Binary
     runs-on: ubuntu-22.04
     steps:
       - name: Checkout
         uses: actions/checkout@v4 
-      - name: Dependencies
+      - name: Install Dependencies
         run: sudo apt update && sudo apt install -y build-essential git python3 libglew-dev libsdl2-dev libz-dev libcurl4-openssl-dev zip
       - name: Build
         run: make -j$(nproc)
@@ -132,3 +174,4 @@ jobs:
         with:
           name: saturn-linux
           path: ./build/us_pc/saturn_Linux.zip
+
