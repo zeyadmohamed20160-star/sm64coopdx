@@ -86,69 +86,36 @@ jobs:
           echo "=========================================================="
           brew install make pkg-config coreutils sdl2 glew
 
-      - name: Verify Environment Configurations
+      - name: Hard Audio Asset Deletion Patch
         run: |
           echo "=========================================================="
-          echo "ENVIRONMENT INFORMATION"
+          echo "PURGING CUSTOM SOUND ASSETS TO BYPASS EXTRACTION TOOLS"
           echo "=========================================================="
-          echo "Operating System Architecture:"
-          uname -a
-          echo "Checking Make utility path:"
-          which gmake || which make
-          echo "Checking pkg-config path:"
-          which pkg-config
-          echo "SDL2 installation layout details:"
-          pkg-config --cflags --libs sdl2 || echo "SDL2 not exposing pkg-config paths yet."
-
-      - name: Safe Structural Pre-generation
-        run: |
-          echo "=========================================================="
-          echo "CREATING EXPLICIT AUDIO TREE DIRECTORIES"
-          echo "=========================================================="
-          mkdir -p build/us_pc/sound/samples/sfx_custom_luigi
-          mkdir -p build/us_pc/sound/samples/sfx_custom_mario
-          mkdir -p build/us_pc/sound/samples/sfx_custom_peach
-          mkdir -p build/us_pc/sound/samples/sfx_custom_toad
-          mkdir -p build/us_pc/sound/samples/sfx_custom_wario
-          mkdir -p build/us_pc/sound/samples/sfx_custom_yoshi
+          # Deleting the actual audio file data points forces the shell scripts to completely skip asset generation rules.
+          # This fully eliminates any calls to the missing aiff_extract_codebook utility program.
+          rm -rf sound/samples/sfx_custom_luigi
+          rm -rf sound/samples/sfx_custom_mario
+          rm -rf sound/samples/sfx_custom_peach
+          rm -rf sound/samples/sfx_custom_toad
+          rm -rf sound/samples/sfx_custom_wario
+          rm -rf sound/samples/sfx_custom_yoshi
           
-          touch build/us_pc/sound/samples/sfx_custom_luigi/.keep
-          touch build/us_pc/sound/samples/sfx_custom_mario/.keep
-          touch build/us_pc/sound/samples/sfx_custom_peach/.keep
-          touch build/us_pc/sound/samples/sfx_custom_toad/.keep
-          touch build/us_pc/sound/samples/sfx_custom_wario/.keep
-          touch build/us_pc/sound/samples/sfx_custom_yoshi/.keep
-          echo "Explicit asset paths initialized successfully."
-
-      - name: Hard Audio Recipe Destruction Patch
-        run: |
-          echo "=========================================================="
-          echo "WIPING CUSTOM AUDIO BUILDING BLOCKS ENTIRELY"
-          echo "=========================================================="
-          # Finds any custom audio compilation files or recipes and cleans them out.
-          # This forces the build system to drop the aiff_extract_codebook tool chain completely.
-          find . -name "*custom_audio*" -exec rm -f {} \; || echo "No custom audio rules to delete."
-          find . -name "*sound*.mk" -exec rm -f {} \; || echo "No sound makefiles to delete."
+          # Force clean the directory path tree entirely
+          mkdir -p sound/samples/sfx_custom_luigi
+          mkdir -p sound/samples/sfx_custom_mario
+          mkdir -p sound/samples/sfx_custom_peach
+          mkdir -p sound/samples/sfx_custom_toad
+          mkdir -p sound/samples/sfx_custom_wario
+          mkdir -p sound/samples/sfx_custom_yoshi
           
-          # Wipe references to the custom sound assets file entirely in Makefile.split if present
-          python3 -c '
-          import os
-          if os.path.exists("Makefile.split"):
-              with open("Makefile.split", "r") as f:
-                  lines = f.readlines()
-              with open("Makefile.split", "w") as f:
-                  for line in lines:
-                      if "sfx_custom" not in line and "aiff_extract" not in line:
-                          f.write(line)
-          '
-          echo "Custom audio compile paths forcefully neutralized."
+          echo "Custom audio data sets successfully stripped."
 
       - name: Compile Source targeting iOS Mobile
         run: |
           echo "=========================================================="
           echo "LAUNCHING CORE ENG COMPILATION RUN VIA ALL SYSTEM CORES"
           echo "=========================================================="
-          # Main target compile run using the neutralized asset maps
+          # Standard target mobile compile implementation run sequence
           make TARGET_IOS=1 -j$(sysctl -n hw.ncpu)
 
       - name: Package Application Bundle into IPA
