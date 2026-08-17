@@ -1,4 +1,4 @@
-name: Build coop 
+name: Build Saturn iOS
 
 on:
   workflow_dispatch:
@@ -24,43 +24,16 @@ jobs:
         run: |
           cd tools
           g++ -std=c++17 -o hash_file hash_file.cpp
-          echo "::notice ::$(./hash_file ../build/us_pc/sm64coopdx)"
+          echo "::notice ::$(./hash_file ../build/us_pc/saturn)"
       - name: Zip the game
         run: |
           cd ./build/us_pc
-          zip -r sm64coopdx_Linux.zip dynos lang mods palettes libdiscord_game_sdk.so sm64coopdx coopdx_updater
+          zip -r saturn_Linux.zip dynos lang mods palettes saturn
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: sm64coopdx-linux
-          path: ./build/us_pc/sm64coopdx_Linux.zip
-
-  build-steamos:
-    if: ${{ (github.event_name != 'push' || contains(github.event.head_commit.message, '[build]')) && github.event.pull_request.draft == false }}
-    runs-on: ubuntu-22.04
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-      - name: Install dependencies
-        run: |
-          sudo apt update
-          sudo apt install -y build-essential git python3 libglew-dev libsdl2-dev libz-dev libcurl4-openssl-dev zip 
-      - name: Build the game
-        run: make -j$(nproc) HANDHELD=1
-      - name: Generate hash
-        run: |
-          cd tools
-          g++ -std=c++17 -o hash_file hash_file.cpp
-          echo "::notice ::$(./hash_file ../build/us_pc/sm64coopdx)"
-      - name: Zip the game
-        run: |
-          cd ./build/us_pc
-          zip -r sm64coopdx_SteamOS.zip dynos lang mods palettes libdiscord_game_sdk.so sm64coopdx coopdx_updater
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: sm64coopdx-steamos
-          path: ./build/us_pc/sm64coopdx_SteamOS.zip
+          name: saturn-linux
+          path: ./build/us_pc/saturn_Linux.zip
 
   build-windows:
     if: ${{ (github.event_name != 'push' || contains(github.event.head_commit.message, '[build]')) && github.event.pull_request.draft == false }}
@@ -76,7 +49,6 @@ jobs:
         with:
           msystem: mingw64
           update: true
-          # Note: Only using x86_64 packages to avoid "target not found" errors
           install: >
             unzip
             make
@@ -92,60 +64,42 @@ jobs:
         run: |
           cd tools
           g++ -std=c++17 -o hash_file.exe hash_file.cpp
-          echo "::notice ::$(./hash_file.exe ../build/us_pc/sm64coopdx.exe)"
+          echo "::notice ::$(./hash_file.exe ../build/us_pc/saturn.exe)"
       - name: Zip the game
         run: |
           cd ./build/us_pc
-          zip -r sm64coopdx_Windows.zip dynos lang mods palettes coop.map discord_game_sdk.dll sm64coopdx.exe coopdx_updater.exe
+          zip -r saturn_Windows.zip dynos lang mods palettes saturn.exe
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: sm64coopdx-windows
-          path: ./build/us_pc/sm64coopdx_Windows.zip
+          name: saturn-windows
+          path: ./build/us_pc/saturn_Windows.zip
 
-  build-macos-arm:
+  build-ios-ipad:
     if: ${{ (github.event_name != 'push' || contains(github.event.head_commit.message, '[build]')) && github.event.pull_request.draft == false }}
     runs-on: macos-latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-      - name: Install dependencies
+
+      - name: Install Tools via Brew
         run: |
-          brew install make mingw-w64 pkg-config glfw3 coreutils 
-      - name: Compile glew
+          brew install make pkg-config coreutils
+
+      - name: Compile Source targeting iOS Mobile
         run: |
-          export MACOSX_DEPLOYMENT_TARGET=11
-          curl -L -o glew.tar.gz https://github.com/nigels-com/glew/releases/download/glew-2.2.0/glew-2.2.0.tgz
-          tar -xzf glew.tar.gz
-          cd glew-2.2.0
-          make SYSTEM=darwin CC="clang -arch arm64 -mmacosx-version-min=11" GLEW_PREFIX=/opt/homebrew GLEW_DEST=/opt/homebrew
-          make install GLEW_PREFIX=/opt/homebrew GLEW_DEST=/opt/homebrew
-      - name: Compile SDL2
+          # Forces the source code engine to construct touch screen bindings instead of Mac targets
+          make TARGET_IOS=1 -j$(sysctl -n hw.ncpu)
+
+      - name: Package Application Bundle into IPA
         run: |
-          curl -L -o SDL2.tar.gz https://github.com/libsdl-org/SDL/releases/download/release-2.30.9/SDL2-2.30.9.tar.gz
-          tar -xzf SDL2.tar.gz
-          cd SDL2-2.30.9
-          ./configure --prefix=/opt/homebrew CC="clang -arch arm64 -mmacosx-version-min=11"
-          make -j$(sysctl -n hw.ncpu)
-          make install
-      - name: Build the game
-        run: |
-          export PKG_CONFIG_PATH=/opt/homebrew/lib/pkgconfig:$PKG_CONFIG_PATH
-          gmake OSX_BUILD=1 -j$(sysctl -n hw.ncpu)
-      - name: Code sign the app (Ad-Hoc)
-        run: |
-          codesign --force --deep --sign - ./build/us_pc/sm64coopdx.app
-      - name: Generate hash
-        run: |
-          cd tools
-          g++ -std=c++17 -o hash_file hash_file.cpp
-          echo "::notice ::$(./hash_file ../build/us_pc/sm64coopdx.app/Contents/MacOS/sm64coopdx)"
-      - name: Zip the .app bundle
-        run: |
-          cd ./build/us_pc
-          zip -r sm64coopdx_macOS_ARM.zip sm64coopdx.app
-      - name: Upload artifact
+          # Apple devices strictly require app binaries inside a compressed directory named "Payload"
+          mkdir -p Payload
+          cp -r build/us_pc/saturn.app Payload/
+          zip -r saturn_iPad.ipa Payload
+
+      - name: Upload Finished iPad IPA Installer
         uses: actions/upload-artifact@v4
         with:
-          name: sm64coopdx-macos-arm
-          path: ./build/us_pc/sm64coopdx_macOS_ARM.zip
+          name: saturn-ipad-bundle
+          path: saturn_iPad.ipa
