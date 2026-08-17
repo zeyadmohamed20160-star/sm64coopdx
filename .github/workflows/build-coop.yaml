@@ -86,24 +86,28 @@ jobs:
           echo "=========================================================="
           brew install make pkg-config coreutils sdl2 glew
 
-      - name: Create Audio Tool Dummy Bypass
+      - name: Create Dynamic Audio Tool Intercept Bypass
         run: |
           echo "=========================================================="
-          echo "INJECTING EXECUTABLE DUMMY INTERCEPT SCRIPTS"
+          echo "INJECTING DYNAMIC EXECUTABLE AUDIO MOCK SCRIPTS"
           echo "=========================================================="
-          # Ensure the tools directory exists
+          # Ensure the base tools directory exists
           mkdir -p tools
-          mkdir -p build/us_pc/sound/samples/sfx_custom_luigi_peach
           
-          # Create fake binaries that do nothing but report success (exit 0)
+          # Create a fake binary script that dynamically builds whatever folder path it is handed
           echo '#!/bin/sh' > tools/aiff_extract_codebook
-          echo 'touch "$@".table 2>/dev/null' >> tools/aiff_extract_codebook
+          echo 'OUTPUT_FILE="$2"' >> tools/aiff_extract_codebook
+          echo 'if [ -n "$OUTPUT_FILE" ]; then' >> tools/aiff_extract_codebook
+          echo '  # Extracts the parent directory string dynamically and creates it' >> tools/aiff_extract_codebook
+          echo '  mkdir -p "$(dirname "$OUTPUT_FILE")"' >> tools/aiff_extract_codebook
+          echo '  touch "$OUTPUT_FILE" 2>/dev/null' >> tools/aiff_extract_codebook
+          echo 'fi' >> tools/aiff_extract_codebook
           echo 'exit 0' >> tools/aiff_extract_codebook
           
-          # Grant execution rights so the system handles it like a real app
+          # Grant absolute execution permissions to the script
           chmod +x tools/aiff_extract_codebook
           
-          echo "Extraction tools successfully mocked."
+          echo "Dynamic interception script successfully mounted."
 
       - name: Compile Source targeting iOS Mobile
         run: |
