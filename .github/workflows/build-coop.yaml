@@ -22,7 +22,7 @@ jobs:
           echo "=========================================================="
           echo "STEP 1: INSTALLING HOMEBREW TOOLS"
           echo "=========================================================="
-          # Core dependencies; audiofile is omitted as it is often unavailable
+          # Core dependencies required for compiling C-based ports on macOS
           brew install make pkg-config coreutils sdl2 glew glfw3 libusb
 
       - name: Exhaustive Directory Guard
@@ -30,8 +30,16 @@ jobs:
           echo "=========================================================="
           echo "STEP 2: PRE-GENERATING ALL BUILD PATHS"
           echo "=========================================================="
-          # Force create paths to prevent "No such file or directory" during parallel builds
+          # We force-create every folder the audio tools might try to write to.
+          # This prevents "No such file or directory" crashes during parallel builds.
           mkdir -p tools
+          mkdir -p build/us_pc/src/pc
+          mkdir -p build/us_pc/src/engine
+          mkdir -p build/us_pc/src/game
+          mkdir -p build/us_pc/bin
+          mkdir -p build/us_pc/actors
+          mkdir -p build/us_pc/levels
+          mkdir -p build/us_pc/assets
           mkdir -p build/us_pc/sound/samples/sfx_custom_luigi
           mkdir -p build/us_pc/sound/samples/sfx_custom_luigi_peach
           mkdir -p build/us_pc/sound/samples/sfx_custom_mario
@@ -39,22 +47,22 @@ jobs:
           mkdir -p build/us_pc/sound/samples/sfx_custom_toad
           mkdir -p build/us_pc/sound/samples/sfx_custom_wario
           mkdir -p build/us_pc/sound/samples/sfx_custom_yoshi
-          echo "Directory tree initialized."
+          echo "Directory tree structure finalized."
 
       - name: Native Tool Bootstrap (Fixes Error 127)
         run: |
           echo "=========================================================="
           echo "STEP 3: COMPILING HOST EXTRACTION TOOLS"
           echo "=========================================================="
-          # CRITICAL: Build the tools folder natively for the Mac runner first.
-          # This ensures 'aiff_extract_codebook' exists as a Mac executable.
+          # CRITICAL: Build the tools folder natively for the Mac host server first.
+          # This ensures 'aiff_extract_codebook' exists as a Mac-runnable program.
           make -C tools -j$(sysctl -n hw.ncpu)
           
           # Verification and Dummy Fallback
           if [ -f "tools/aiff_extract_codebook" ]; then
             echo "SUCCESS: aiff_extract_codebook natively compiled."
           else
-            echo "WARNING: Tool failed to compile. Injecting dummy bypass."
+            echo "WARNING: Tool failed to compile. Injecting dummy bypass script."
             cat << 'EOF' > tools/aiff_extract_codebook
           #!/bin/sh
           for arg in "$@"; do
@@ -70,12 +78,13 @@ jobs:
             chmod +x tools/aiff_extract_codebook
           fi
 
-      - name: Compile Source targeting iOS Mobile
+      - name: Compile Saturn for iOS
         run: |
           echo "=========================================================="
           echo "STEP 4: STARTING iOS CORE COMPILATION"
           echo "=========================================================="
-          # A watchdog loop prevents parallel build threads from deleting directories
+          # Background loop to protect directories from being deleted during build.
+          # Some makefiles try to 'rm -rf build' during startup; this stops that.
           (
             while true; do
               mkdir -p build/us_pc/sound/samples/sfx_custom_luigi 2>/dev/null
@@ -85,7 +94,7 @@ jobs:
           ) &
           LOOP_PID=$!
           
-          # Main build command with iOS flags
+          # Main build command targeting iOS
           make TARGET_IOS=1 -j$(sysctl -n hw.ncpu)
           
           kill $LOOP_PID 2>/dev/null || true
@@ -95,18 +104,24 @@ jobs:
           echo "=========================================================="
           echo "STEP 5: STRUCTURING IPA PAYLOAD"
           echo "=========================================================="
+          # Apple devices strictly require app binaries inside a 'Payload' folder
           mkdir -p Payload
-          # Detect and package the app bundle (saturn.app, sm64coopdx.app, or generic)
+          
+          # Detect and package the app bundle (checks both saturn.app and sm64coopdx.app)
           if [ -d "build/us_pc/saturnapp" ]; then
+            echo "Packaging verified saturn.app target..."
             cp -r build/us_pc/saturn.app Payload/
           elif [ -d "build/us_pc/smcoopdxapp" ]; then
+            echo "Packaging verified sm64coopdx.app target..."
             cp -r build/us_pc/sm64coopdx.app Payload/
           else
+            echo "Searching for generic application metadata..."
             cp -r build/us_pc/*.app Payload/ || echo "Warning: No .app folder detected."
           fi
-          # Final zip into .ipa format
+          
+          # Compress the Payload folder into the final flashable .ipa format
           zip -r saturn_iPad.ipa Payload
-          echo "IPA packaging finished."
+          echo "IPA packaging complete."
 
       - name: Upload Finished Saturn iPad IPA
         uses: actions/upload-artifact@v4
@@ -120,22 +135,41 @@ jobs:
       run:
         shell: msys2 {0}
     steps:
-      - name: Checkout
+      - name: Checkout repository
         uses: actions/checkout@v4
-      - name: Install Dependencies
+      - name: Install dependencies
         uses: msys2/setup-msys2@v2
         with:
           msystem: mingw64
           update: true
           install: unzip make git mingw-w64-x86_64-gcc mingw-w64-x86_64-glew mingw-w64-x86_64-SDL2 python3 zip 
-      - name: Build
+      - name: Build Saturn Windows
         run: make -j$(nproc)
-      - name: Zip
+      - name: Zip Artifact
         run: |
           cd ./build/us_pc
           zip -r saturn_Windows.zip *.exe
-      - name: Upload
+      - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
           name: saturn-windows
           path: ./build/us_pc/saturn_Windows.zip
+
+  build-linux:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4 
+      - name: Install dependencies
+        run: sudo apt update && sudo apt install -y build-essential git python3 libglew-dev libsdl2-dev libz-dev libcurl4-openssl-dev zip
+      - name: Build Saturn Linux
+        run: make -j$(nproc)
+      - name: Zip Artifact
+        run: |
+          cd ./build/us_pc
+          zip -r saturn_Linux.zip saturn sm64coopdx
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: saturn-linux
+          path: ./build/us_pc/saturn_Linux.zip
