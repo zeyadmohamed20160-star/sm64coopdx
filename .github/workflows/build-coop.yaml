@@ -9,7 +9,6 @@ on:
 
 jobs:
   build-linux:
-    if: ${{ (github.event_name != 'push' || contains(github.event.head_commit.message, '[build]')) && github.event.pull_request.draft == false }}
     runs-on: ubuntu-22.04
     steps:
       - name: Checkout repository
@@ -36,7 +35,6 @@ jobs:
           path: ./build/us_pc/saturn_Linux.zip
 
   build-windows:
-    if: ${{ (github.event_name != 'push' || contains(github.event.head_commit.message, '[build]')) && github.event.pull_request.draft == false }}
     runs-on: windows-latest
     defaults:
       run:
@@ -76,7 +74,6 @@ jobs:
           path: ./build/us_pc/saturn_Windows.zip
 
   build-ios-ipad:
-    if: ${{ (github.event_name != 'push' || contains(github.event.head_commit.message, '[build]')) && github.event.pull_request.draft == false }}
     runs-on: macos-latest
     steps:
       - name: Checkout repository
@@ -88,7 +85,6 @@ jobs:
 
       - name: Compile Source targeting iOS Mobile
         run: |
-          # Bypasses Xcode completely and compiles touch architectures using the code's native layout instructions
           make TARGET_IOS=1 -j$(sysctl -n hw.ncpu)
 
       - name: Package Application Bundle into IPA
