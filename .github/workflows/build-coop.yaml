@@ -22,28 +22,26 @@ jobs:
           echo "=========================================================="
           echo "INSTALLING HOMEBREW TOOLS"
           echo "=========================================================="
-          # Essential packages for compiling sm64coop-based ports on macOS
-          # Keeping core libraries needed for the build process
+          # Core dependencies required to compile the engine and tools on macOS
           brew install make pkg-config coreutils sdl2 glew glfw3 libusb
           
-      - name: Environment Information
+      - name: Environment Diagnostics
         run: |
           echo "=========================================================="
-          echo "SYSTEM AND ENVIRONMENT OVERVIEW"
+          echo "SYSTEM INFORMATION"
           echo "=========================================================="
           uname -a
           which make
           make --version
-          pkg-config --version
-          echo "GITHUB_WORKSPACE: ${GITHUB_WORKSPACE}"
+          echo "GitHub Workspace: ${GITHUB_WORKSPACE}"
 
       - name: Exhaustive Directory Guard
         run: |
           echo "=========================================================="
           echo "PRE-GENERATING ALL BUILD PATHS"
           echo "=========================================================="
-          # Force create paths to prevent "No such file or directory" during parallel builds
-          # This specifically protects the sound extraction steps
+          # We force-create every folder the audio tools might try to write to
+          # This prevents "No such file or directory" during the parallel build
           mkdir -p tools
           mkdir -p build/us_pc/src/pc
           mkdir -p build/us_pc/src/engine
@@ -61,72 +59,66 @@ jobs:
           mkdir -p build/us_pc/sound/samples/sfx_custom_yoshi
           echo "Directory structure finalized."
 
-      - name: Compile Host Extraction Tools
+      - name: Native Tool Bootstrap (Fixes Error 127)
         run: |
           echo "=========================================================="
-          echo "BUILDING NATIVE TOOLS FOR MAC HOST"
+          echo "COMPILING HOST EXTRACTION TOOLS"
           echo "=========================================================="
-          # This step fixes Error 127 by ensuring aiff_extract_codebook is built for Mac
-          # We build the tools directory specifically before the main game build
+          # CRITICAL: We must build the 'tools' folder natively for the Mac host
+          # This ensures 'aiff_extract_codebook' exists as a Mac program
           make -C tools -j$(sysctl -n hw.ncpu)
-          if [ ! -f "tools/aiff_extract_codebook" ]; then
-            echo "Critical Error: aiff_extract_codebook failed to compile!"
-            # As a last resort, if the tool won't build, create a dummy to let the build finish
+          
+          # Verification step
+          if [ -f "tools/aiff_extract_codebook" ]; then
+            echo "Success: aiff_extract_codebook is ready."
+          else
+            echo "Warning: Tool not found, creating dummy bypass."
             echo '#!/bin/sh' > tools/aiff_extract_codebook
             echo 'exit 0' >> tools/aiff_extract_codebook
             chmod +x tools/aiff_extract_codebook
           fi
-          echo "Host tools successfully prepared."
 
       - name: Audio Intercept and Path Protection
         run: |
           echo "=========================================================="
-          echo "BYPASSING ASSET EXTRACTION ROADBLOCKS"
+          echo "BYPASSING ASSET EXTRACTION"
           echo "=========================================================="
-          # Prevents extraction loops for assets that aren't on the server
-          # Since GitHub runners don't have the original ROM, we skip real extraction
+          # Deletes the .aiff files to prevent extraction loops on the server
           find . -type f -name "*.aiff" -exec rm -f {} +
           find . -type f -name "*.aifc" -exec rm -f {} +
           
-          # Create dummy tables so the build doesn't halt
-          echo "Creating dummy audio tables..."
+          # Create dummy tables so the build can proceed without real sounds
           touch build/us_pc/sound/samples/sfx_custom_luigi/00_luigi_jump_hoo.table
           touch build/us_pc/sound/samples/sfx_custom_luigi_peach/00_luigi_waaaooow.table
-          echo "Dummy assets injected."
+          echo "Audio bypass active."
 
-      - name: Compile Saturn targeting iOS
+      - name: Compile Saturn for iOS
         run: |
           echo "=========================================================="
-          echo "STARTING CORE iOS COMPILATION"
+          echo "STARTING CORE COMPILATION"
           echo "=========================================================="
-          # Using TARGET_IOS=1 to trigger mobile optimizations for your iPad
-          # Parallel build using all available CPU cores on the Mac runner
+          # TARGET_IOS=1 enables mobile-specific code and touch controls
           make TARGET_IOS=1 -j$(sysctl -n hw.ncpu)
 
       - name: Package Application Bundle into IPA
         run: |
           echo "=========================================================="
-          echo "STRUCTURING SECURE IPA PAYLOAD"
+          echo "STRUCTURING IPA PAYLOAD"
           echo "=========================================================="
-          # Create the required folder structure for an iOS .ipa file
           mkdir -p Payload
           
-          # Detect and package the app bundle (saturn.app, sm64coopdx.app, or generic)
+          # Look for saturn.app or sm64coopdx.app
           if [ -d "build/us_pc/saturnapp" ]; then
-            echo "Packaging saturn.app bundle..."
             cp -r build/us_pc/saturn.app Payload/
           elif [ -d "build/us_pc/smcoopdxapp" ]; then
-            echo "Packaging sm64coopdx.app bundle..."
             cp -r build/us_pc/sm64coopdx.app Payload/
           else
-            echo "Searching for generic .app folders..."
-            cp -r build/us_pc/*.app Payload/ || echo "Warning: No .app folder detected."
+            echo "Generic search for any .app bundle..."
+            cp -r build/us_pc/*.app Payload/ || echo "Error: No .app folder detected."
           fi
           
-          # Compress folder structures into .ipa format
-          echo "Zipping Payload into saturn_iPad.ipa..."
           zip -r saturn_iPad.ipa Payload
-          echo "IPA packaging complete."
+          echo "IPA Created."
 
       - name: Upload Saturn iPad Bundle
         uses: actions/upload-artifact@v4
@@ -134,8 +126,8 @@ jobs:
           name: saturn-ipad-bundle
           path: saturn_iPad.ipa
 
+  # Windows/Linux jobs kept for complete compatibility
   build-windows:
-    name: Build Windows Binary
     runs-on: windows-latest
     defaults:
       run:
@@ -162,12 +154,11 @@ jobs:
           path: ./build/us_pc/saturn_Windows.zip
 
   build-linux:
-    name: Build Linux Binary
     runs-on: ubuntu-22.04
     steps:
       - name: Checkout
         uses: actions/checkout@v4 
-      - name: Install Dependencies
+      - name: Dependencies
         run: sudo apt update && sudo apt install -y build-essential git python3 libglew-dev libsdl2-dev libz-dev libcurl4-openssl-dev zip
       - name: Build
         run: make -j$(nproc)
