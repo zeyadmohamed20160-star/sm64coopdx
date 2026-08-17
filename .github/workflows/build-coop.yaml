@@ -86,15 +86,15 @@ jobs:
           echo "=========================================================="
           brew install make pkg-config coreutils sdl2 glew
 
-      - name: Nuclear Audio Asset Deletion Patch
+      - name: Complete Custom Audio Purge Patch
         run: |
           echo "=========================================================="
-          echo "PURGING ALL CUSTOM SOUND ASSETS USING WILDCARDS"
+          echo "OBLITERATING ALL CUSTOM SFX TRACKS ENTIRELY"
           echo "=========================================================="
-          # Using sfx_custom_* completely obliterates luigi_peach and any other hidden mod folders
-          rm -rf sound/samples/sfx_custom_*
+          # Finds and drops every directory matching custom audio paths to prevent tool calls
+          find sound/samples/ -type d -name "*custom*" -exec rm -rf {} + || echo "Clean"
           
-          # Force create clean empty folders to keep the build scripts happy
+          # Force re-creates the base empty structures so the engine scripts don't drop out on path checks
           mkdir -p sound/samples/sfx_custom_luigi
           mkdir -p sound/samples/sfx_custom_mario
           mkdir -p sound/samples/sfx_custom_peach
@@ -103,7 +103,7 @@ jobs:
           mkdir -p sound/samples/sfx_custom_yoshi
           mkdir -p sound/samples/sfx_custom_luigi_peach
           
-          echo "All custom audio data folders matching the patch have been stripped."
+          echo "Custom assets neutralized successfully."
 
       - name: Compile Source targeting iOS Mobile
         run: |
@@ -139,8 +139,3 @@ jobs:
           name: saturn-ipad-bundle
           path: saturn_iPad.ipa
 
-      - name: Upload Finished iPad IPA Installer
-        uses: actions/upload-artifact@v4
-        with:
-          name: saturn-ipad-bundle
-          path: saturn_iPad.ipa
