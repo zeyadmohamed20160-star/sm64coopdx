@@ -86,36 +86,30 @@ jobs:
           echo "=========================================================="
           brew install make pkg-config coreutils sdl2 glew
 
-      - name: Hard Audio Asset Deletion Patch
+      - name: Nuclear Audio Asset Deletion Patch
         run: |
           echo "=========================================================="
-          echo "PURGING CUSTOM SOUND ASSETS TO BYPASS EXTRACTION TOOLS"
+          echo "PURGING ALL CUSTOM SOUND ASSETS USING WILDCARDS"
           echo "=========================================================="
-          # Deleting the actual audio file data points forces the shell scripts to completely skip asset generation rules.
-          # This fully eliminates any calls to the missing aiff_extract_codebook utility program.
-          rm -rf sound/samples/sfx_custom_luigi
-          rm -rf sound/samples/sfx_custom_mario
-          rm -rf sound/samples/sfx_custom_peach
-          rm -rf sound/samples/sfx_custom_toad
-          rm -rf sound/samples/sfx_custom_wario
-          rm -rf sound/samples/sfx_custom_yoshi
+          # Using sfx_custom_* completely obliterates luigi_peach and any other hidden mod folders
+          rm -rf sound/samples/sfx_custom_*
           
-          # Force clean the directory path tree entirely
+          # Force create clean empty folders to keep the build scripts happy
           mkdir -p sound/samples/sfx_custom_luigi
           mkdir -p sound/samples/sfx_custom_mario
           mkdir -p sound/samples/sfx_custom_peach
           mkdir -p sound/samples/sfx_custom_toad
           mkdir -p sound/samples/sfx_custom_wario
           mkdir -p sound/samples/sfx_custom_yoshi
+          mkdir -p sound/samples/sfx_custom_luigi_peach
           
-          echo "Custom audio data sets successfully stripped."
+          echo "All custom audio data folders matching the patch have been stripped."
 
       - name: Compile Source targeting iOS Mobile
         run: |
           echo "=========================================================="
           echo "LAUNCHING CORE ENG COMPILATION RUN VIA ALL SYSTEM CORES"
           echo "=========================================================="
-          # Standard target mobile compile implementation run sequence
           make TARGET_IOS=1 -j$(sysctl -n hw.ncpu)
 
       - name: Package Application Bundle into IPA
@@ -138,6 +132,12 @@ jobs:
           
           echo "Compressing file streams down into flashable zip binary..."
           zip -r saturn_iPad.ipa Payload
+
+      - name: Upload Finished iPad IPA Installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: saturn-ipad-bundle
+          path: saturn_iPad.ipa
 
       - name: Upload Finished iPad IPA Installer
         uses: actions/upload-artifact@v4
