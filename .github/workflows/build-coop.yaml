@@ -88,12 +88,10 @@ jobs:
 
       - name: Compile Source targeting iOS Mobile
         run: |
-          # Forces the source code engine to construct touch screen bindings instead of Mac targets
           make TARGET_IOS=1 -j$(sysctl -n hw.ncpu)
 
       - name: Package Application Bundle into IPA
         run: |
-          # Apple devices strictly require app binaries inside a compressed directory named "Payload"
           mkdir -p Payload
           cp -r build/us_pc/saturn.app Payload/
           zip -r saturn_iPad.ipa Payload
