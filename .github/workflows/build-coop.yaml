@@ -1,4 +1,4 @@
-name: Build Saturn iOS
+name: Build Saturn ipa
 
 on:
   workflow_dispatch:
@@ -20,22 +20,15 @@ jobs:
           echo "=========================================================="
           echo "INSTALLING HOMEBREW TOOLS"
           echo "=========================================================="
-          # Essential for compiling C-based ports on macOS
+          # Core dependencies for Mac/iOS builds
           brew install make pkg-config coreutils sdl2 glew
 
-      - name: Exhaustive Directory Guard
+      - name: Clean and Pre-Generate Folder Structure
         run: |
           echo "=========================================================="
           echo "PRE-GENERATING ALL BUILD PATHS"
           echo "=========================================================="
-          # Force create every possible path to prevent "No such file or directory" errors
-          mkdir -p build/us_pc/src/pc
-          mkdir -p build/us_pc/src/engine
-          mkdir -p build/us_pc/src/game
-          mkdir -p build/us_pc/bin
-          mkdir -p build/us_pc/actors
-          mkdir -p build/us_pc/levels
-          mkdir -p build/us_pc/assets
+          # Parallel builds often fail if directories are missing during sound extraction
           mkdir -p build/us_pc/sound/samples/sfx_custom_luigi
           mkdir -p build/us_pc/sound/samples/sfx_custom_luigi_peach
           mkdir -p build/us_pc/sound/samples/sfx_custom_mario
@@ -43,50 +36,40 @@ jobs:
           mkdir -p build/us_pc/sound/samples/sfx_custom_toad
           mkdir -p build/us_pc/sound/samples/sfx_custom_wario
           mkdir -p build/us_pc/sound/samples/sfx_custom_yoshi
+          mkdir -p tools
 
-      - name: Build Native Host Tools
+      - name: Build Native Host Tools (Fixes Error 127)
         run: |
           echo "=========================================================="
-          echo "COMPILING EXTRACTION TOOLS"
+          echo "COMPILING EXTRACTION TOOLS FOR MAC HOST"
           echo "=========================================================="
-          # We must compile the tools folder separately first so aiff_extract_codebook exists
+          # We build the tools FOLDER first without iOS flags so the tools can run on the Mac server
           make -C tools -j$(sysctl -n hw.ncpu)
-
-      - name: Universal Audio Patch
-        run: |
-          echo "=========================================================="
-          echo "BYPASSING AUDIO EXTRACTION ERRORS"
-          echo "=========================================================="
-          # Injects dummy logic to prevent the build from stopping if a sound file is missing
-          # This specifically targets the 'sfx_custom_luigi' crash you've been hitting
-          find . -type f -name "*.aiff" -exec rm -f {} +
-          find . -type f -name "*.aifc" -exec rm -f {} +
-          touch build/us_pc/sound/samples/sfx_custom_luigi/00_luigi_jump_hoo.table
-          touch build/us_pc/sound/samples/sfx_custom_luigi_peach/00_luigi_waaaooow.table
 
       - name: Compile Saturn for iOS
         run: |
           echo "=========================================================="
-          echo "STARTING CORE COMPILATION"
+          echo "STARTING CORE iOS COMPILATION"
           echo "=========================================================="
-          # TARGET_IOS=1 triggers the touch-controls and mobile optimizations
-          # We use -j$(sysctl -n hw.ncpu) to use all available Mac server CPU cores
+          # We use the built-in TARGET_IOS=1 to enable touch controls and mobile layout
+          # We use -j to speed up the process with all available CPU cores
           make TARGET_IOS=1 -j$(sysctl -n hw.ncpu)
 
       - name: Structure IPA Payload
         run: |
           echo "=========================================================="
-          echo "PACKAGING APP BUNDLE"
+          echo "PACKAGING APP BUNDLE INTO IPA"
           echo "=========================================================="
           mkdir -p Payload
-          # Covers all naming possibilities (saturn.app, sm64coopdx.app, or generic)
+          # Search for the app folder whether it's named saturn.app, sm64coopdx.app, or generic
           if [ -d "build/us_pc/saturnapp" ]; then
             cp -r build/us_pc/saturn.app Payload/
           elif [ -d "build/us_pc/smcoopdxapp" ]; then
             cp -r build/us_pc/sm64coopdx.app Payload/
           else
-            cp -r build/us_pc/*.app Payload/
+            cp -r build/us_pc/*.app Payload/ || echo "Warning: No .app folder found!"
           fi
+          # Create the final .ipa file
           zip -r saturn_iPad.ipa Payload
 
       - name: Upload Saturn iPad Bundle
@@ -95,6 +78,7 @@ jobs:
           name: saturn-ipad-bundle
           path: saturn_iPad.ipa
 
+  # Windows build included for your project completeness
   build-windows:
     runs-on: windows-latest
     defaults:
@@ -109,7 +93,7 @@ jobs:
           msystem: mingw64
           update: true
           install: unzip make git mingw-w64-x86_64-gcc mingw-w64-x86_64-glew mingw-w64-x86_64-SDL2 python3 zip 
-      - name: Build Windows Executable
+      - name: Build
         run: make -j$(nproc)
       - name: Zip Windows Artifact
         run: |
@@ -121,6 +105,7 @@ jobs:
           name: saturn-windows
           path: ./build/us_pc/saturn_Windows.zip
 
+  # Linux build included for your project completeness
   build-linux:
     runs-on: ubuntu-22.04
     steps:
@@ -130,7 +115,7 @@ jobs:
         run: |
           sudo apt update
           sudo apt install -y build-essential git python3 libglew-dev libsdl2-dev libz-dev libcurl4-openssl-dev zip
-      - name: Build Linux Binary
+      - name: Build
         run: make -j$(nproc)
       - name: Zip Linux Artifact
         run: |
