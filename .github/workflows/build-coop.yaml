@@ -81,7 +81,8 @@ jobs:
 
       - name: Install Tools via Brew
         run: |
-          brew install make pkg-config coreutils
+          # Added sdl2 and glew packages to fix the "sdl2-config: Command not found" and SDL.h errors
+          brew install make pkg-config coreutils sdl2 glew
 
       - name: Compile Source targeting iOS Mobile
         run: |
@@ -90,7 +91,8 @@ jobs:
       - name: Package Application Bundle into IPA
         run: |
           mkdir -p Payload
-          cp -r build/us_pc/saturn.app Payload/
+          # Automatically detects if the output application bundle folder is named saturn.app or sm64coopdx.app
+          cp -r build/us_pc/saturn.app Payload/ 2>/dev/null || cp -r build/us_pc/sm64coopdx.app Payload/
           zip -r saturn_iPad.ipa Payload
 
       - name: Upload Finished iPad IPA Installer
