@@ -86,24 +86,25 @@ jobs:
           echo "=========================================================="
           brew install make pkg-config coreutils sdl2 glew
 
-      - name: Complete Custom Audio Purge Patch
+      - name: Universal Audio Asset Purge
         run: |
           echo "=========================================================="
-          echo "OBLITERATING ALL CUSTOM SFX TRACKS ENTIRELY"
+          echo "PURGING ALL AIFF AND EXTRACTION UTILITIES FROM SOURCE"
           echo "=========================================================="
-          # Finds and drops every directory matching custom audio paths to prevent tool calls
-          find sound/samples/ -type d -name "*custom*" -exec rm -rf {} + || echo "Clean"
+          # Recursively deletes all audio data points to skip extraction phases completely
+          find . -type f -name "*.aiff" -exec rm -f {} +
+          find . -type f -name "*.aifc" -exec rm -f {} +
           
-          # Force re-creates the base empty structures so the engine scripts don't drop out on path checks
-          mkdir -p sound/samples/sfx_custom_luigi
-          mkdir -p sound/samples/sfx_custom_mario
-          mkdir -p sound/samples/sfx_custom_peach
-          mkdir -p sound/samples/sfx_custom_toad
-          mkdir -p sound/samples/sfx_custom_wario
-          mkdir -p sound/samples/sfx_custom_yoshi
-          mkdir -p sound/samples/sfx_custom_luigi_peach
+          # Creates clean placeholder directories to ensure make path rules resolve cleanly
+          mkdir -p build/us_pc/sound/samples/sfx_custom_luigi
+          mkdir -p build/us_pc/sound/samples/sfx_custom_mario
+          mkdir -p build/us_pc/sound/samples/sfx_custom_peach
+          mkdir -p build/us_pc/sound/samples/sfx_custom_toad
+          mkdir -p build/us_pc/sound/samples/sfx_custom_wario
+          mkdir -p build/us_pc/sound/samples/sfx_custom_yoshi
+          mkdir -p build/us_pc/sound/samples/sfx_custom_luigi_peach
           
-          echo "Custom assets neutralized successfully."
+          echo "Repository audio resources cleanly stripped."
 
       - name: Compile Source targeting iOS Mobile
         run: |
@@ -138,4 +139,3 @@ jobs:
         with:
           name: saturn-ipad-bundle
           path: saturn_iPad.ipa
-
