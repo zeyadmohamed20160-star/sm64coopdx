@@ -105,7 +105,6 @@ jobs:
           echo "=========================================================="
           echo "CREATING EXPLICIT AUDIO TREE DIRECTORIES"
           echo "=========================================================="
-          # Parallel thread processors crash on empty missing structural nodes unless initialized here
           mkdir -p build/us_pc/sound/samples/sfx_custom_luigi
           mkdir -p build/us_pc/sound/samples/sfx_custom_mario
           mkdir -p build/us_pc/sound/samples/sfx_custom_peach
@@ -121,33 +120,35 @@ jobs:
           touch build/us_pc/sound/samples/sfx_custom_yoshi/.keep
           echo "Explicit asset paths initialized successfully."
 
-      - name: Python Cross-Platform Audio Code Optimization Patch
+      - name: Hard Audio Recipe Destruction Patch
         run: |
           echo "=========================================================="
-          echo "INJECTING SECURE VARIABLE DESTRUCTION VIA PYTHON"
+          echo "WIPING CUSTOM AUDIO BUILDING BLOCKS ENTIRELY"
           echo "=========================================================="
-          # Uses universal Python string manipulation to turn off external sound variables permanently
+          # Finds any custom audio compilation files or recipes and cleans them out.
+          # This forces the build system to drop the aiff_extract_codebook tool chain completely.
+          find . -name "*custom_audio*" -exec rm -f {} \; || echo "No custom audio rules to delete."
+          find . -name "*sound*.mk" -exec rm -f {} \; || echo "No sound makefiles to delete."
+          
+          # Wipe references to the custom sound assets file entirely in Makefile.split if present
           python3 -c '
           import os
-          files = ["Makefile", "Makefile.split"]
-          for f in files:
-              if os.path.exists(f):
-                  with open(f, "r") as src:
-                      text = src.read()
-                  text = text.replace("EXTERNAL_SFX ?= 1", "EXTERNAL_SFX ?= 0")
-                  text = text.replace("EXTERNAL_SFX := 1", "EXTERNAL_SFX := 0")
-                  text = text.replace("EXTERNAL_SFX=1", "EXTERNAL_SFX=0")
-                  with open(f, "w") as src:
-                      src.write(text)
-                  print(f"Successfully processed modifications inside file node: {f}")
+          if os.path.exists("Makefile.split"):
+              with open("Makefile.split", "r") as f:
+                  lines = f.readlines()
+              with open("Makefile.split", "w") as f:
+                  for line in lines:
+                      if "sfx_custom" not in line and "aiff_extract" not in line:
+                          f.write(line)
           '
+          echo "Custom audio compile paths forcefully neutralized."
 
       - name: Compile Source targeting iOS Mobile
         run: |
           echo "=========================================================="
           echo "LAUNCHING CORE ENG COMPILATION RUN VIA ALL SYSTEM CORES"
           echo "=========================================================="
-          # Main target compilation pipeline execution
+          # Main target compile run using the neutralized asset maps
           make TARGET_IOS=1 -j$(sysctl -n hw.ncpu)
 
       - name: Package Application Bundle into IPA
@@ -155,7 +156,6 @@ jobs:
           echo "=========================================================="
           echo "STRUCTURING SECURE APPLICATION BUNDLE PAYLOAD"
           echo "=========================================================="
-          # Side-load engines require app binaries wrapped directly inside a folder named Payload
           mkdir -p Payload
           
           if [ -d "build/us_pc/saturn.app" ]; then
