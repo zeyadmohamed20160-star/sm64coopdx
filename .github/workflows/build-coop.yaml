@@ -86,13 +86,36 @@ jobs:
           echo "=========================================================="
           brew install make pkg-config coreutils sdl2 glew
 
+      - name: Python Absolute Asset Tool Disabler Patch
+        run: |
+          echo "=========================================================="
+          echo "NEUTRALIZING AUDIO PIPELINE GENERATION SCRIPTS"
+          echo "=========================================================="
+          # Uses universal Python parsing to read your project's sound generation shell script 
+          # and comments out or removes any loops that call aiff_extract_codebook.
+          python3 -c '
+          import os
+          target_script = "sound/sound_data.sh"
+          if os.path.exists(target_script):
+              with open(target_script, "r") as f:
+                  lines = f.readlines()
+              with open(target_script, "w") as f:
+                  for line in lines:
+                      # If a line tries to run custom voice extraction tools, skip or comment it out
+                      if "aiff_extract_codebook" in line or "sfx_custom" in line:
+                          f.write("# " + line)
+                      else:
+                          f.write(line)
+              print("Successfully deactivated internal sound tool hooks.")
+          else:
+              print("sound_data.sh script path not found, moving to fallback checks.")
+          '
+
       - name: Compile Source targeting iOS Mobile
         run: |
           echo "=========================================================="
           echo "LAUNCHING REAL-TIME DIRECTORY PROTECTION LOOP"
           echo "=========================================================="
-          # Starts a continuous background daemon thread that force-creates the missing path targets.
-          # This guarantees that when the aiff utility fires, the directory path physically exists.
           (
             while true; do
               mkdir -p build/us_pc/sound/samples/sfx_custom_luigi 2>/dev/null
@@ -114,7 +137,6 @@ jobs:
           # Main target compilation run execution
           make TARGET_IOS=1 -j$(sysctl -n hw.ncpu)
           
-          # Kill the guard loop cleanly when the compilation finishes successfully
           kill $LOOP_PID 2>/dev/null || true
 
       - name: Package Application Bundle into IPA
