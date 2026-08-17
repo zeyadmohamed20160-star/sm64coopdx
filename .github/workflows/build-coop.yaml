@@ -1,105 +1,108 @@
-name: Build Saturn iOS
+name: Build Saturn iOS 
 
 on:
-  workflow_dispatch:
-  push:
-    branches: [ dev ]
-  pull_request:
-    branches: [ dev ] 
+workflow_dispatch:
+push:
+branches: [ dev ]
+pull_request:
+branches: [ dev ] 
 
 jobs:
-  build-linux:
-    if: ${{ (github.event_name != 'push' || contains(github.event.head_commit.message, '[build]')) && github.event.pull_request.draft == false }}
-    runs-on: ubuntu-22.04
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4 
-      - name: Install dependencies
-        run: |
-          sudo apt update
-          sudo apt install -y build-essential git python3 libglew-dev libsdl2-dev libz-dev libcurl4-openssl-dev zip
-      - name: Build the game
-        run: make -j$(nproc)
-      - name: Generate hash
-        run: |
-          cd tools
-          g++ -std=c++17 -o hash_file hash_file.cpp
-          echo "::notice ::$(./hash_file ../build/us_pc/saturn)"
-      - name: Zip the game
-        run: |
-          cd ./build/us_pc
-          zip -r saturn_Linux.zip dynos lang mods palettes saturn
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: saturn-linux
-          path: ./build/us_pc/saturn_Linux.zip
+build-linux:
+if: ${{ (github.event_name != 'push' || contains(github.event.head_commit.message, '[build]')) && github.event.pull_request.draft == false }}
+runs-on: ubuntu-22.04
+steps:
+- name: Checkout repository
+uses: actions/checkout@v4
+- name: Install dependencies
+run: |
+sudo apt update
+sudo apt install -y build-essential git python3 libglew-dev libsdl2-dev libz-dev libcurl4-openssl-dev zip
+- name: Build the game
+run: make -j$(nproc)
+- name: Generate hash
+run: |
+cd tools
+g++ -std=c++17 -o hash_file hash_file.cpp
+echo "::notice ::$(./hash_file ../build/us_pc/saturn)"
+- name: Zip the game
+run: |
+cd ./build/us_pc
+zip -r saturn_Linux.zip dynos lang mods palettes saturn
+- name: Upload artifact
+uses: actions/upload-artifact@v4
+with:
+name: saturn-linux
+path: ./build/us_pc/saturn_Linux.zip 
 
-  build-windows:
-    if: ${{ (github.event_name != 'push' || contains(github.event.head_commit.message, '[build]')) && github.event.pull_request.draft == false }}
-    runs-on: windows-latest
-    defaults:
-      run:
-        shell: msys2 {0}
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-      - name: Install dependencies
-        uses: msys2/setup-msys2@v2
-        with:
-          msystem: mingw64
-          update: true
-          install: >
-            unzip
-            make
-            git
-            mingw-w64-x86_64-gcc
-            mingw-w64-x86_64-glew
-            mingw-w64-x86_64-SDL2
-            python3
-            zip 
-      - name: Build the game
-        run: make -j$(nproc)
-      - name: Generate hash
-        run: |
-          cd tools
-          g++ -std=c++17 -o hash_file.exe hash_file.cpp
-          echo "::notice ::$(./hash_file.exe ../build/us_pc/saturn.exe)"
-      - name: Zip the game
-        run: |
-          cd ./build/us_pc
-          zip -r saturn_Windows.zip dynos lang mods palettes saturn.exe
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: saturn-windows
-          path: ./build/us_pc/saturn_Windows.zip
+build-windows:
+if: ${{ (github.event_name != 'push' || contains(github.event.head_commit.message, '[build]')) && github.event.pull_request.draft == false }}
+runs-on: windows-latest
+defaults:
+run:
+shell: msys2 {0}
+steps:
+- name: Checkout repository
+uses: actions/checkout@v4
+- name: Install dependencies
+uses: msys2/setup-msys2@v2
+with:
+msystem: mingw64
+update: true
+install: >
+unzip
+make
+git
+mingw-w64-x86_64-gcc
+mingw-w64-x86_64-glew
+mingw-w64-x86_64-SDL2
+python3
+zip
+- name: Build the game
+run: make -j$(nproc)
+- name: Generate hash
+run: |
+cd tools
+g++ -std=c++17 -o hash_file.exe hash_file.cpp
+echo "::notice ::$(./hash_file.exe ../build/us_pc/saturn.exe)"
+- name: Zip the game
+run: |
+cd ./build/us_pc
+zip -r saturn_Windows.zip dynos lang mods palettes saturn.exe
+- name: Upload artifact
+uses: actions/upload-artifact@v4
+with:
+name: saturn-windows
+path: ./build/us_pc/saturn_Windows.zip 
 
-  build-ios-ipad:
-    if: ${{ (github.event_name != 'push' || contains(github.event.head_commit.message, '[build]')) && github.event.pull_request.draft == false }}
-    runs-on: macos-latest
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+build-ios-ipad:
+if: ${{ (github.event_name != 'push' || contains(github.event.head_commit.message, '[build]')) && github.event.pull_request.draft == false }}
+runs-on: macos-latest
+steps:
+- name: Checkout repository
+uses: actions/checkout@v4 
 
-      - name: Install Tools via Brew
-        run: |
-          brew install make pkg-config coreutils
+* name: Install Tools via Brew
+run: |
+brew install make pkg-config coreutils
+* name: Compile Source targeting iOS Mobile
+run: |
 
-      - name: Compile Source targeting iOS Mobile
-        run: |
-          # Forces the source code engine to construct touch screen bindings instead of Mac targets
-          make TARGET_IOS=1 -j$(sysctl -n hw.ncpu)
+# Forces the source code engine to construct touch screen bindings instead of Mac targets
 
-      - name: Package Application Bundle into IPA
-        run: |
-          # Apple devices strictly require app binaries inside a compressed directory named "Payload"
-          mkdir -p Payload
-          cp -r build/us_pc/saturn.app Payload/
-          zip -r saturn_iPad.ipa Payload
+make TARGET_IOS=1 -j$(sysctl -n hw.ncpu)
 
-      - name: Upload Finished iPad IPA Installer
-        uses: actions/upload-artifact@v4
-        with:
-          name: saturn-ipad-bundle
-          path: saturn_iPad.ipa
+* name: Package Application Bundle into IPA
+run: |
+
+# Apple devices strictly require app binaries inside a compressed directory named "Payload"
+
+mkdir -p Payload
+cp -r build/us_pc/saturn.app Payload/
+zip -r saturn_iPad.ipa Payload
+
+* name: Upload Finished iPad IPA Installer
+uses: actions/upload-artifact@v4
+with:
+name: saturn-ipad-bundle
+path: saturn_iPad.ipa
