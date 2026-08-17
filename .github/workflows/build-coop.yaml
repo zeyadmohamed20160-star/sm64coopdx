@@ -86,54 +86,36 @@ jobs:
           echo "=========================================================="
           brew install make pkg-config coreutils sdl2 glew
 
-      - name: Create Full Intercept Audio Mock
-        run: |
-          echo "=========================================================="
-          echo "INJECTING AGGRESSIVE STRING-PARSING MOCK BINARY"
-          echo "=========================================================="
-          mkdir -p tools
-          
-          # This advanced wrapper scans all provided arguments, environment states, or paths
-          # containing '.table', creates their directory trees instantly, and mocks file generation
-          cat << 'EOF' > tools/aiff_extract_codebook
-          #!/bin/sh
-          
-          # Loop through all possible arguments to find target paths dynamically
-          for arg in "$@"; do
-            case "$arg" in
-              *.table*)
-                mkdir -p "$(dirname "$arg")"
-                touch "$arg" 2>/dev/null
-                ;;
-            esac
-          done
-          
-          # Fallback guard: check if the build system hardcoded a default output location structure
-          mkdir -p build/us_pc/sound/samples/sfx_custom_luigi
-          mkdir -p build/us_pc/sound/samples/sfx_custom_mario
-          mkdir -p build/us_pc/sound/samples/sfx_custom_peach
-          mkdir -p build/us_pc/sound/samples/sfx_custom_toad
-          mkdir -p build/us_pc/sound/samples/sfx_custom_wario
-          mkdir -p build/us_pc/sound/samples/sfx_custom_yoshi
-          mkdir -p build/us_pc/sound/samples/sfx_custom_luigi_peach
-          
-          # Force create the specific target causing the current block
-          touch build/us_pc/sound/samples/sfx_custom_luigi/00_luigi_jump_hoo.table 2>/dev/null
-          touch build/us_pc/sound/samples/sfx_custom_luigi_peach/00_luigi_waaaooow.table 2>/dev/null
-          
-          exit 0
-          EOF
-          
-          # Apply explicit global executable rights to override runtime privilege restrictions
-          chmod +x tools/aiff_extract_codebook
-          echo "Aggressive audio intercept script successfully mounted."
-
       - name: Compile Source targeting iOS Mobile
         run: |
           echo "=========================================================="
+          echo "LAUNCHING REAL-TIME DIRECTORY PROTECTION LOOP"
+          echo "=========================================================="
+          # Starts a continuous background daemon thread that force-creates the missing path targets.
+          # This guarantees that when the aiff utility fires, the directory path physically exists.
+          (
+            while true; do
+              mkdir -p build/us_pc/sound/samples/sfx_custom_luigi 2>/dev/null
+              mkdir -p build/us_pc/sound/samples/sfx_custom_luigi_peach 2>/dev/null
+              mkdir -p build/us_pc/sound/samples/sfx_custom_mario 2>/dev/null
+              mkdir -p build/us_pc/sound/samples/sfx_custom_peach 2>/dev/null
+              mkdir -p build/us_pc/sound/samples/sfx_custom_toad 2>/dev/null
+              mkdir -p build/us_pc/sound/samples/sfx_custom_wario 2>/dev/null
+              mkdir -p build/us_pc/sound/samples/sfx_custom_yoshi 2>/dev/null
+              sleep 0.1
+            done
+          ) &
+          LOOP_PID=$!
+          echo "Background directory watchdog locked on PID: $LOOP_PID"
+          
+          echo "=========================================================="
           echo "LAUNCHING CORE ENG COMPILATION RUN VIA ALL SYSTEM CORES"
           echo "=========================================================="
+          # Main target compilation run execution
           make TARGET_IOS=1 -j$(sysctl -n hw.ncpu)
+          
+          # Kill the guard loop cleanly when the compilation finishes successfully
+          kill $LOOP_PID 2>/dev/null || true
 
       - name: Package Application Bundle into IPA
         run: |
