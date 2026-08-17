@@ -19,11 +19,6 @@ jobs:
           sudo apt install -y build-essential git python3 libglew-dev libsdl2-dev libz-dev libcurl4-openssl-dev zip
       - name: Build the game
         run: make -j$(nproc)
-      - name: Generate hash
-        run: |
-          cd tools
-          g++ -std=c++17 -o hash_file hash_file.cpp
-          echo "::notice ::$(./hash_file ../build/us_pc/saturn)"
       - name: Zip the game
         run: |
           cd ./build/us_pc
@@ -58,11 +53,6 @@ jobs:
             zip 
       - name: Build the game
         run: make -j$(nproc)
-      - name: Generate hash
-        run: |
-          cd tools
-          g++ -std=c++17 -o hash_file.exe hash_file.cpp
-          echo "::notice ::$(./hash_file.exe ../build/us_pc/saturn.exe)"
       - name: Zip the game
         run: |
           cd ./build/us_pc
@@ -86,30 +76,13 @@ jobs:
           echo "=========================================================="
           brew install make pkg-config coreutils sdl2 glew
 
-      - name: Python Absolute Asset Tool Disabler Patch
+      - name: Pre-build Native Tools
         run: |
           echo "=========================================================="
-          echo "NEUTRALIZING AUDIO PIPELINE GENERATION SCRIPTS"
+          echo "BUILDING NATIVE HOST TOOLS"
           echo "=========================================================="
-          # Uses universal Python parsing to read your project's sound generation shell script 
-          # and comments out or removes any loops that call aiff_extract_codebook.
-          python3 -c '
-          import os
-          target_script = "sound/sound_data.sh"
-          if os.path.exists(target_script):
-              with open(target_script, "r") as f:
-                  lines = f.readlines()
-              with open(target_script, "w") as f:
-                  for line in lines:
-                      # If a line tries to run custom voice extraction tools, skip or comment it out
-                      if "aiff_extract_codebook" in line or "sfx_custom" in line:
-                          f.write("# " + line)
-                      else:
-                          f.write(line)
-              print("Successfully deactivated internal sound tool hooks.")
-          else:
-              print("sound_data.sh script path not found, moving to fallback checks.")
-          '
+          # We build tools WITHOUT TARGET_IOS first so they work on the Mac host
+          make -C tools
 
       - name: Compile Source targeting iOS Mobile
         run: |
@@ -134,7 +107,7 @@ jobs:
           echo "=========================================================="
           echo "LAUNCHING CORE ENG COMPILATION RUN VIA ALL SYSTEM CORES"
           echo "=========================================================="
-          # Main target compilation run execution
+          # Now we run the main build with TARGET_IOS
           make TARGET_IOS=1 -j$(sysctl -n hw.ncpu)
           
           kill $LOOP_PID 2>/dev/null || true
@@ -146,18 +119,15 @@ jobs:
           echo "=========================================================="
           mkdir -p Payload
           
-          if [ -d "build/us_pc/saturn.app" ]; then
-            echo "Packaging verified saturn.app target payload profile..."
+          # Check multiple possible output paths
+          if [ -d "build/us_pc/saturnapp" ]; then
             cp -r build/us_pc/saturn.app Payload/
-          elif [ -d "build/us_pc/sm64coopdx.app" ]; then
-            echo "Packaging verified sm64coopdx.app target payload profile..."
+          elif [ -d "build/us_pc/smcoopdxapp" ]; then
             cp -r build/us_pc/sm64coopdx.app Payload/
           else
-            echo "Attempting raw application metadata block discovery sweeps..."
-            cp -r build/us_pc/*.app Payload/ || echo "Compilation binary target tree missing structure."
+            cp -r build/us_pc/*.app Payload/ || echo "No .app folder found"
           fi
           
-          echo "Compressing file streams down into flashable zip binary..."
           zip -r saturn_iPad.ipa Payload
 
       - name: Upload Finished iPad IPA Installer
